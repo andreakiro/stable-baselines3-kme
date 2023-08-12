@@ -100,6 +100,7 @@ class PPO(OnPolicyAlgorithm):
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
         _init_setup_model: bool = True,
+        rewarder: Optional[Any] = None,
     ):
         super().__init__(
             policy,
@@ -126,6 +127,7 @@ class PPO(OnPolicyAlgorithm):
                 spaces.MultiDiscrete,
                 spaces.MultiBinary,
             ),
+            rewarder=rewarder,
         )
 
         # Sanity check, otherwise it will lead to noisy gradient and NaN
