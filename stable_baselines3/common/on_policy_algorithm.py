@@ -102,6 +102,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
         self.rewarder = rewarder
+        self.dim_states = spaces.utils.flatdim(self.observation_space)
 
         if _init_setup_model:
             self._setup_model()
@@ -217,16 +218,33 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             self._last_obs = new_obs  # type: ignore[assignment]
             self._last_episode_starts = dones
 
+        # Custom rum injection.
         if self.rewarder is not None:
-            # rollout_buffer.shape (n_steps, n_envs, dim_states)
-            self.rewarder.learn(rollout_buffer) # update rewarder state
-            self.rewarder.compute(rollout_buffer) # (n_steps, n_envs)
+            # Augment rewards.
+            n_steps, n_envs = rollout_buffer.buffer_size, rollout_buffer.n_envs
+            states = th.tensor(rollout_buffer.observations).view(n_steps * n_envs, self.dim_states)
+            intrinsic_rewards = self.rewarder.reward_function(states)
+            extrinsic_rewards = th.Tensor(rollout_buffer.rewards).view(n_steps * n_envs)
+            augmented_rewards = extrinsic_rewards + intrinsic_rewards
+            rollout_buffer.rewards = augmented_rewards.view(n_steps, n_envs, 1).detach().numpy()
+
+            # Learn.
+            self.rewarder.learn(states) # TODO. Make async.
+
+            # Run scripts.
+            if hasattr(self.logger, 'run_scripts'):
+              self.logger.run_scripts({
+                'states': states,
+                'extrinsic_rewards': extrinsic_rewards,
+                'intrinsic_rewards': intrinsic_rewards,
+              })
 
         with th.no_grad():
             # Compute value for the last timestep
             values = self.policy.predict_values(obs_as_tensor(new_obs, self.device))  # type: ignore[arg-type]
 
         rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
+
 
         callback.on_rollout_end()
 
