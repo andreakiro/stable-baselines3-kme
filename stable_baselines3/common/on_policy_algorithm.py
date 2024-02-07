@@ -238,6 +238,18 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 'extrinsic_rewards': extrinsic_rewards,
                 'intrinsic_rewards': intrinsic_rewards,
               })
+        else:
+            n_steps, n_envs = rollout_buffer.buffer_size, rollout_buffer.n_envs
+            states = th.tensor(rollout_buffer.observations).view(n_steps * n_envs, self.dim_states)
+            intrinsic_rewards = self.rewarder.reward_function(states)
+            extrinsic_rewards = th.Tensor(rollout_buffer.rewards).view(n_steps * n_envs)
+            intrinsc_rewards = th.zeros_like(extrinsic_rewards)
+            if hasattr(self.logger, 'run_scripts'):
+              self.logger.run_scripts({
+                'states': states,
+                'extrinsic_rewards': extrinsic_rewards,
+                'intrinsic_rewards': intrinsic_rewards,
+              })
 
         with th.no_grad():
             # Compute value for the last timestep
