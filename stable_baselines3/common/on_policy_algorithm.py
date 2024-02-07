@@ -241,9 +241,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         else:
             n_steps, n_envs = rollout_buffer.buffer_size, rollout_buffer.n_envs
             states = th.tensor(rollout_buffer.observations).view(n_steps * n_envs, self.dim_states)
-            intrinsic_rewards = self.rewarder.reward_function(states)
             extrinsic_rewards = th.Tensor(rollout_buffer.rewards).view(n_steps * n_envs)
-            intrinsc_rewards = th.zeros_like(extrinsic_rewards)
+            intrinsic_rewards = th.zeros_like(extrinsic_rewards)
             if hasattr(self.logger, 'run_scripts'):
               self.logger.run_scripts({
                 'states': states,
