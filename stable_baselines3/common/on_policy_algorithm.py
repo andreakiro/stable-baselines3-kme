@@ -16,6 +16,9 @@ from stable_baselines3.common.vec_env import VecEnv
 
 SelfOnPolicyAlgorithm = TypeVar("SelfOnPolicyAlgorithm", bound="OnPolicyAlgorithm")
 
+# Hacking.
+from threading import Thread
+
 
 class OnPolicyAlgorithm(BaseAlgorithm):
     """
@@ -218,18 +221,24 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             self._last_obs = new_obs  # type: ignore[assignment]
             self._last_episode_starts = dones
 
-        # Custom rum injection.
+        # Hacking.
         if self.rewarder is not None:
             # Augment rewards.
             n_steps, n_envs = rollout_buffer.buffer_size, rollout_buffer.n_envs
             states = th.tensor(rollout_buffer.observations).view(n_steps * n_envs, self.dim_states)
+            if self.rewarder.concurrent and hasattr(self, 'rewarder_thread'):
+              self.rewarder_thread.join()
             intrinsic_rewards = self.rewarder.reward_function(states)
             extrinsic_rewards = th.Tensor(rollout_buffer.rewards).view(n_steps * n_envs)
             augmented_rewards = extrinsic_rewards + intrinsic_rewards
             rollout_buffer.rewards = augmented_rewards.view(n_steps, n_envs, 1).detach().numpy()
 
             # Learn.
-            self.rewarder.learn(states) # TODO. Make async.
+            if self.rewarder.concurrent:
+              self.rewarder_thread = Thread(target=self.rewarder.learn, args=(states,))
+              self.rewarder_thread.start()
+            else:
+              self.rewarder.learn(states) 
 
             # Run scripts.
             if hasattr(self.logger, 'run_scripts'):
