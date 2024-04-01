@@ -230,8 +230,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
               self.rewarder_thread.join()
             intrinsic_rewards = self.rewarder.reward_function(states)
             extrinsic_rewards = th.Tensor(rollout_buffer.rewards).view(n_steps * n_envs)
-            augmented_rewards = extrinsic_rewards + intrinsic_rewards
-            rollout_buffer.rewards = augmented_rewards.view(n_steps, n_envs, 1).detach().numpy()
+            augmented_rewards = extrinsic_rewards + self.rewarder.scaling * intrinsic_rewards
+            rollout_buffer.rewards = augmented_rewards.view(n_steps, n_envs).detach().numpy()
 
             # Learn.
             if self.rewarder.concurrent:
